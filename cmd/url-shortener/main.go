@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"URL-shortener/internal/config"
 	"URL-shortener/internal/http-server/handlers/url/delete"
 	"URL-shortener/internal/http-server/handlers/url/redirect"
 	"URL-shortener/internal/http-server/handlers/url/save"
 	mwLogger "URL-shortener/internal/http-server/middleware/logger"
+	"URL-shortener/internal/services/event-sender"
 	"URL-shortener/internal/storage/sqlite"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -31,6 +34,8 @@ func main() {
 		slog.String("env", cfg.Env),
 	)
 	log.Debug("debug messages are enabled")
+
+	ctx := context.Background()
 
 	storage, err := sqlite.New(cfg.StoragePath)
 	if err != nil {
@@ -63,6 +68,9 @@ func main() {
 		WriteTimeout: cfg.HTTPServer.Timeout,
 		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
 	}
+
+	sender := eventsender.NewSender(storage, log)
+	sender.StartProcessingEvents(ctx, 5*time.Second)
 
 	if err = srv.ListenAndServe(); err != nil {
 		log.Error(
