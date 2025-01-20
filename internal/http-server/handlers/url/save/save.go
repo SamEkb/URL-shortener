@@ -1,15 +1,16 @@
 package save
 
 import (
+	"errors"
+	"log/slog"
+	"net/http"
+
 	"URL-shortener/internal/lib/api/response"
 	"URL-shortener/internal/lib/random"
 	"URL-shortener/internal/storage"
-	"errors"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
-	"log/slog"
-	"net/http"
 )
 
 type Request struct {
@@ -66,7 +67,7 @@ func New(log *slog.Logger, urlSaver URLSaver) http.HandlerFunc {
 		}
 
 		id, err := urlSaver.SaveURL(req.URL, alias)
-		if errors.Is(err, storage.ErrUrlExists) {
+		if errors.Is(err, storage.ErrURLExists) {
 			log.Error("url already exists", slog.String("url", req.URL))
 
 			render.JSON(writer, request, response.Error("url already exists"))

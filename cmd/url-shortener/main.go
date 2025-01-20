@@ -1,15 +1,18 @@
 package main
 
 import (
+	"log/slog"
+	"net/http"
+	"os"
+
 	"URL-shortener/internal/config"
+	"URL-shortener/internal/http-server/handlers/url/delete"
+	"URL-shortener/internal/http-server/handlers/url/redirect"
 	"URL-shortener/internal/http-server/handlers/url/save"
 	mwLogger "URL-shortener/internal/http-server/middleware/logger"
 	"URL-shortener/internal/storage/sqlite"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"log/slog"
-	"net/http"
-	"os"
 )
 
 const (
@@ -23,7 +26,10 @@ func main() {
 
 	log := setupLogger(cfg.Env)
 
-	log.Info("starting url shortener", slog.String("env", cfg.Env))
+	log.Info(
+		"starting url shortener",
+		slog.String("env", cfg.Env),
+	)
 	log.Debug("debug messages are enabled")
 
 	storage, err := sqlite.New(cfg.StoragePath)
@@ -39,7 +45,16 @@ func main() {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.URLFormat)
 
-	router.Post("/url", save.New(log, storage))
+	router.Route("/url", func(r chi.Router) {
+		r.Use(middleware.BasicAuth("url-shortener", map[string]string{
+			cfg.HTTPServer.User: cfg.HTTPServer.Password,
+		}))
+
+		r.Post("/", save.New(log, storage))
+		r.Delete("/", delete.New(log, storage))
+	})
+
+	router.Get("/{alias}", redirect.New(log, storage))
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPServer.Address,
@@ -50,7 +65,10 @@ func main() {
 	}
 
 	if err = srv.ListenAndServe(); err != nil {
-		log.Error("failed to run server", slog.String("error", err.Error()))
+		log.Error(
+			"failed to run server",
+			slog.String("error", err.Error()),
+		)
 	}
 
 	log.Error("server was stopped")

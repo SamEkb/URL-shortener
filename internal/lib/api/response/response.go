@@ -2,8 +2,11 @@ package response
 
 import (
 	"fmt"
-	"github.com/go-playground/validator/v10"
+	"net/http"
 	"strings"
+
+	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
 )
 
 type Response struct {
@@ -45,4 +48,14 @@ func ValidationError(errs validator.ValidationErrors) Response {
 		Status: StatusError,
 		Error:  strings.Join(errMsgs, ", "),
 	}
+}
+
+func ErrorStatus(writer http.ResponseWriter, request *http.Request, message string, statusCode int) {
+	writer.WriteHeader(statusCode)
+	render.JSON(writer, request, map[string]string{"error": message})
+}
+
+func SuccessStatus(writer http.ResponseWriter, request *http.Request, message string) {
+	writer.WriteHeader(http.StatusOK)
+	render.JSON(writer, request, map[string]string{"message": message})
 }
