@@ -22,7 +22,7 @@ func New(dbPath string) (*Storage, error) {
 
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("%s: open db: %w", op, err)
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	queries := []string{
@@ -43,7 +43,7 @@ func New(dbPath string) (*Storage, error) {
 
 	for _, query := range queries {
 		if _, err := db.Exec(query); err != nil {
-			return nil, fmt.Errorf("%s: exec query: %w", op, err)
+			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 	}
 
@@ -55,7 +55,7 @@ func (s *Storage) SaveURL(urlToSave string, alias string) (id int64, err error) 
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return 0, fmt.Errorf("%s transaction %w", op, err)
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
 	defer func() {
@@ -65,13 +65,13 @@ func (s *Storage) SaveURL(urlToSave string, alias string) (id int64, err error) 
 		}
 
 		if commitErr := tx.Commit(); commitErr != nil {
-			err = fmt.Errorf("%s commit %w", op, commitErr)
+			err = fmt.Errorf("%s: %w", op, commitErr)
 		}
 	}()
 
 	stmt, err := tx.Prepare("INSERT INTO url(url, alias) values (?, ?)")
 	if err != nil {
-		return 0, fmt.Errorf("%s prepare statement %w", op, err)
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 	defer stmt.Close()
 
@@ -79,15 +79,15 @@ func (s *Storage) SaveURL(urlToSave string, alias string) (id int64, err error) 
 	if err != nil {
 		var sqliteErr sqlite3.Error
 		if errors.As(err, &sqliteErr) && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
-			return 0, fmt.Errorf("%s: unique constraint failed: %w", op, storage.ErrURLExists)
+			return 0, fmt.Errorf("%s: %w", op, storage.ErrURLExists)
 		}
 
-		return 0, fmt.Errorf("%s execute statement %w", op, err)
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
 	id, err = resp.LastInsertId()
 	if err != nil {
-		return 0, fmt.Errorf("%s failed to get last insert id %w", op, err)
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
 	eventPayload := fmt.Sprintf(
@@ -98,7 +98,7 @@ func (s *Storage) SaveURL(urlToSave string, alias string) (id int64, err error) 
 	)
 
 	if err = s.saveEvent(tx, urlCreatedType, eventPayload); err != nil {
-		return 0, fmt.Errorf("%s failed to save event %w", op, err)
+		return 0, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return id, nil
@@ -109,13 +109,13 @@ func (s *Storage) saveEvent(tx *sql.Tx, eventType string, payload string) error 
 
 	stmt, err := tx.Prepare("INSERT INTO events(event_type, payload) values(?,?) ")
 	if err != nil {
-		return fmt.Errorf("%s prepare statement %w", op, err)
+		return fmt.Errorf("%s:  %w", op, err)
 	}
 	defer stmt.Close()
 
 	_, err = stmt.Exec(eventType, payload)
 	if err != nil {
-		return fmt.Errorf("%s failed to execute statement %w", op, err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
@@ -139,7 +139,7 @@ func (s *Storage) GetNewEvent() (domain.Event, error) {
 			return domain.Event{}, nil
 		}
 
-		return domain.Event{}, fmt.Errorf("%s failed to scan row %w", op, err)
+		return domain.Event{}, fmt.Errorf("%s: %w", op, err)
 	}
 
 	return domain.Event{
@@ -154,11 +154,11 @@ func (s *Storage) SetEventDone(id int) error {
 
 	stmt, err := s.db.Prepare("UPDATE events SET status = 'done' WHERE id = ?")
 	if err != nil {
-		return fmt.Errorf("%s failed to prepare statement %w", op, err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	if _, err = stmt.Exec(id); err != nil {
-		return fmt.Errorf("%s failed to execute statement %w", op, err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
@@ -169,7 +169,7 @@ func (s *Storage) GetURL(aliasToFind string) (string, error) {
 
 	stmt, err := s.db.Prepare("SELECT url FROM url WHERE alias = ?")
 	if err != nil {
-		return "", fmt.Errorf("%s prepare statement %w", op, err)
+		return "", fmt.Errorf("%s: %w", op, err)
 	}
 	defer stmt.Close()
 
@@ -179,7 +179,7 @@ func (s *Storage) GetURL(aliasToFind string) (string, error) {
 		return "", storage.ErrURLNotFound
 	}
 	if err != nil {
-		return "", fmt.Errorf("%s execute statement %w", op, err)
+		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
 	return resUrl, nil
@@ -190,12 +190,12 @@ func (s *Storage) DeleteURL(alias string) error {
 
 	res, err := s.db.Exec("DELETE FROM url WHERE alias = ?", alias)
 	if err != nil {
-		return fmt.Errorf("%s: exec delete: %w", op, err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	_, err = res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("%s: rowsAffected: %w", op, err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
